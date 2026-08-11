@@ -20,11 +20,8 @@ public class AppointmentController {
 
     // POST: /api/appointments/book
     @PostMapping("/book")
-    public ResponseEntity<Appointment> bookAppointment(
-            @RequestBody AppointmentRequest requestDTO,
-            Principal principal) {
-
-        // principal.getName() extracts the username/email stored in the JWT token
+    public ResponseEntity<Appointment> bookAppointment(@RequestBody AppointmentRequest requestDTO,
+                                                       Principal principal) {
         String patientEmail = principal.getName();
         Appointment savedAppointment = appointmentService.bookAppointment(requestDTO, patientEmail);
         return ResponseEntity.ok(savedAppointment);

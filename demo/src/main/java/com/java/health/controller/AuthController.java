@@ -1,27 +1,25 @@
 package com.java.health.controller;
 
 import com.java.health.dto.LoginRequest;
+import com.java.health.dto.PasswordChangeRequest;
 import com.java.health.dto.PatientRegisterRequest;
-import com.java.health.dto.DoctorRegisterRequest; // Create this DTO for doctor input + file
-import com.java.health.dto.PasswordChangeRequest; // Create this DTO for changing password
-import lombok.AllArgsConstructor;
-import org.springframework.http.MediaType;
+import com.java.health.service.AuthService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import com.java.health.service.AuthService;
 
-@CrossOrigin(origins = "*", maxAge = 3600)
 @RestController
 @RequestMapping("/api/auth")
-@AllArgsConstructor
 public class AuthController {
 
     private final AuthService authService;
 
+    public AuthController(AuthService authService) {
+        this.authService = authService;
+    }
+
     @PostMapping("/register/patient")
     public ResponseEntity<?> registerUser(@RequestBody PatientRegisterRequest signUpRequest) {
         return authService.register(signUpRequest);
-
     }
 
     @PostMapping("/login")
@@ -32,5 +30,10 @@ public class AuthController {
     @PutMapping("/change-password")
     public ResponseEntity<?> changePassword(@RequestBody PasswordChangeRequest passwordChangeRequest) {
         return authService.changePassword(passwordChangeRequest);
+    }
+
+    @GetMapping("/profile")
+    public ResponseEntity<?> getProfile() {
+        return authService.getProfile();
     }
 }

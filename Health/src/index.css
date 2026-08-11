@@ -1,1 +1,63 @@
 @import "tailwindcss";
+
+@layer base {
+  :root {
+    /* Primary Hospital Blue Palette */
+    --color-primary: #1D4ED8;        /* blue-700 */
+    --color-primary-hover: #1E40AF;  /* blue-800 */
+    --color-primary-light: #EFF6FF;  /* blue-50 */
+    
+    /* Secondary Light/Sky Blue Palette */
+    --color-sky-primary: #0284C7;    /* sky-600 */
+    --color-sky-light: #F0F9FF;      /* sky-50 */
+    --color-sky-border: #BAE6FD;     /* sky-200 */
+
+    --color-surface: #FFFFFF;
+    --color-background: #F8FAFC;     /* slate-50 */
+
+    --color-text-main: #0F172A;      /* slate-900 */
+    --color-text-muted: #64748B;     /* slate-500 */
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-text-main);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+/* Custom Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-scaleIn {
+  animation: scaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #F1F5F9;
+}
+::-webkit-scrollbar-thumb {
+  background: #94A3B8;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #64748B;
+}

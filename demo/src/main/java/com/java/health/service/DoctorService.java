@@ -2,27 +2,22 @@ package com.java.health.service;
 
 import com.java.health.dto.DoctorRegisterRequest;
 import com.java.health.entity.Doctor;
-import com.java.health.entity.User;
 import com.java.health.entity.Role;
+import com.java.health.entity.User;
 import com.java.health.repository.DoctorRepository;
-import lombok.AllArgsConstructor;
-import lombok.NoArgsConstructor;
-import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.java.health.repository.UserRepository;
+import com.java.health.util.PasswordGenerator;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import java.io.IOException;
 import java.nio.file.*;
+import java.util.List;
 import java.util.UUID;
-import java.util.*;
 
-
-import com.java.health.repository.UserRepository;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.mail.javamail.JavaMailSender;
-
-@RequiredArgsConstructor
 @Service
 public class DoctorService {
 
@@ -31,9 +26,15 @@ public class DoctorService {
     private final PasswordEncoder passwordEncoder;
     private final JavaMailSender mailSender;
 
-    @Value("${upload.path}")
+    @Value("${upload.path:./uploads/proofs/}")
     private String uploadFolder;
 
+    public DoctorService(DoctorRepository doctorRepository, UserRepository userRepository, PasswordEncoder passwordEncoder, JavaMailSender mailSender) {
+        this.doctorRepository = doctorRepository;
+        this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.mailSender = mailSender;
+    }
 
     @Transactional
     public void registerDoctor(DoctorRegisterRequest request) {
@@ -46,12 +47,15 @@ public class DoctorService {
         }
 
         try {
-            Path directory = Paths.get(uploadFolder);
+            Path directory = Paths.get(uploadFolder).toAbsolutePath().normalize();
             if (!Files.exists(directory)) {
                 Files.createDirectories(directory);
             }
 
-            String uniqueFileName = UUID.randomUUID() + "_" + request.getProof().getOriginalFilename();
+            String originalName = request.getProof().getOriginalFilename();
+            String cleanName = originalName != null ? originalName.replaceAll("[^a-zA-Z0-9._-]", "_") : "proof.pdf";
+            String uniqueFileName = UUID.randomUUID() + "_" + cleanName;
+
             Path targetPath = directory.resolve(uniqueFileName);
             Files.copy(request.getProof().getInputStream(), targetPath, StandardCopyOption.REPLACE_EXISTING);
 
@@ -62,21 +66,17 @@ public class DoctorService {
             doctor.setSpecialization(request.getSpecialization());
             doctor.setHospitalName(request.getHospitalName());
             doctor.setHospitalLocation(request.getHospitalLocation());
-            doctor.setVerificationProofPath(targetPath.toString());
+            doctor.setVerificationProofPath(uniqueFileName);
             doctor.setStatus(Doctor.Status.PENDING);
 
             doctorRepository.save(doctor);
         } catch (IOException e) {
-            throw new RuntimeException("Could not persist file metadata securely.", e);
+            throw new RuntimeException("Could not persist verification file.", e);
         }
     }
 
-    // Append these methods inside your com.java.health.service.DoctorService class
-
-
-
     @Transactional
-    public void approveDoctor(Long doctorId) {
+    public String approveDoctor(Long doctorId) {
         Doctor doctor = doctorRepository.findById(doctorId)
                 .orElseThrow(() -> new IllegalArgumentException("Doctor identity records not found."));
 
@@ -84,45 +84,74 @@ public class DoctorService {
             throw new IllegalStateException("Doctor is not pending validation approval.");
         }
 
-        // 1. Generate Secure Password
-        String rawPassword = com.java.health.util.PasswordGenerator.generateSecurePassword();
+        String rawPassword = PasswordGenerator.generateSecurePassword();
 
-        // 2. Map and Save Authentication Principal
         User user = new User();
         user.setUsername(doctor.getEmail());
         user.setPassword(passwordEncoder.encode(rawPassword));
         user.setRole(Role.DOCTOR);
+        user.setRequiresPasswordChange(true);
         User savedUser = userRepository.save(user);
 
-        // 3. Complete Linkage & Update Lifecycle Status
         doctor.setUser(savedUser);
         doctor.setStatus(Doctor.Status.APPROVED);
         doctorRepository.save(doctor);
 
-        // 4. Asynchronously send notifications out of band
-        //sendCredentialsEmail(doctor.getEmail(), doctor.getName(), rawPassword);
-        System.out.println("------------------------------------");
-        System.out.println("Doctor Approved");
-        System.out.println("Username : " + doctor.getEmail());
-        System.out.println("Password : " + rawPassword);
-        System.out.println("------------------------------------");
+        System.out.println("\n\n========================================================");
+        System.out.println("  [DOCTOR APPROVED] CREDENTIALS GENERATED");
+        System.out.println("  DOCTOR EMAIL   : " + doctor.getEmail());
+        System.out.println("  PLAIN PASSWORD : " + rawPassword);
+        System.out.println("========================================================\n\n");
+
+        return rawPassword;
     }
 
-    private void sendCredentialsEmail(String email, String name, String password) {
-        try {
-            org.springframework.mail.SimpleMailMessage message = new org.springframework.mail.SimpleMailMessage();
-            message.setTo(email);
-            message.setSubject("Clinical Workspace Portal Account Activated");
-            message.setText(String.format("Hello Dr. %s,\n\nYour onboarding portfolio has been verified by the administration team.\n\n" +
-                            "Portal Credentials:\nUsername: %s\nTemporary Password: %s\n\nPlease rotate your temporary password upon entry.",
-                    name, email, password));
-            mailSender.send(message);
-        } catch (Exception e) {
-            // Log exception via Logger abstraction. Do not fail transaction if communication grid times out.
-        }
-    }
     public List<Doctor> getPendingDoctors() {
         return doctorRepository.findByStatus(Doctor.Status.PENDING);
     }
 
+    public Path getUploadFolderDirectory() {
+        return Paths.get(uploadFolder).toAbsolutePath().normalize();
+    }
+    
+    @Transactional
+    public Doctor updateDoctorProfile(Long doctorId, com.java.health.dto.UpdateProfileRequest request) {
+        Doctor doctor = doctorRepository.findById(doctorId)
+                .orElseThrow(() -> new RuntimeException("Doctor not found"));
+
+        if (request.getName() != null) doctor.setName(request.getName());
+        if (request.getEmail() != null) doctor.setEmail(request.getEmail());
+        if (request.getDegree() != null) doctor.setDegree(request.getDegree());
+        if (request.getSpecialization() != null) doctor.setSpecialization(request.getSpecialization());
+        if (request.getHospitalName() != null) doctor.setHospitalName(request.getHospitalName());
+        if (request.getHospitalLocation() != null) doctor.setHospitalLocation(request.getHospitalLocation());
+
+        User user = doctor.getUser();
+        if (user != null) {
+            boolean userUpdated = false;
+            if (request.getEmail() != null && !request.getEmail().trim().isEmpty() && !user.getUsername().equals(request.getEmail())) {
+                user.setUsername(request.getEmail());
+                userUpdated = true;
+            }
+            
+            if (request.getPassword() != null && !request.getPassword().trim().isEmpty()) {
+                user.setPassword(passwordEncoder.encode(request.getPassword()));
+                userUpdated = true;
+            }
+            
+            if (userUpdated) {
+                userRepository.save(user);
+            }
+        }
+
+        return doctorRepository.save(doctor);
+    }
+
+    @Transactional
+    public void rejectDoctor(Long doctorId) {
+        Doctor doctor = doctorRepository.findById(doctorId)
+                .orElseThrow(() -> new IllegalArgumentException("Doctor not found"));
+        doctor.setStatus(Doctor.Status.REJECTED);
+        doctorRepository.save(doctor);
+    }
 }

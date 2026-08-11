@@ -1,7 +1,2 @@
-function Dashboard(){
-    return(
-        <h1> Doctor's Dashboard</h1>
-    )
-}
-
-export default Dashboard;
+import DoctorOverview from '../pages/doctor/DoctorOverview';
+export default DoctorOverview;
